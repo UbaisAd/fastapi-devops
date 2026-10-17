@@ -27,37 +27,117 @@ The application is available while the EC2 instance and its associated services 
 
 ## Architecture
 
+### 1. CI/CD and Deployment Flow
+
 ```text
-Developer
-    |
-    | Push changes to main
-    v
-GitHub Repository
-    |
-    v
-GitHub Actions
-    |
-    | Run validation and build image
-    v
-GitHub Container Registry (GHCR)
-    |
-    | Publish Docker image
-    v
-Self-hosted Runner on AWS EC2
-    |
-    | Pull latest code and image
-    | Deploy with Docker Compose
-    v
-Nginx (Ports 80 and 443)
-    |
-    | HTTPS and reverse proxy
-    v
-FastAPI Container (Internal Port 8000)
++----------------------+
+|      Developer       |
+|  Code Changes        |
++----------+-----------+
+           |
+           | git push
+           v
++----------------------+
+|   GitHub Repository  |
+|   main branch        |
++----------+-----------+
+           |
+           v
++----------------------+
+|   GitHub Actions     |
+|                      |
+|  1. Validate Code    |
+|  2. Build Image      |
+|  3. Run Checks       |
++----------+-----------+
+           |
+           | Push image on successful
+           | main branch workflow
+           v
++----------------------+
+| GitHub Container     |
+| Registry (GHCR)      |
+|                      |
+| fastapi-devops:latest|
++----------+-----------+
+           |
+           | Pull image and deploy
+           v
++------------------------------------------------+
+|              AWS EC2 Instance                  |
+|                Ubuntu Linux                    |
+|                                                |
+|  +------------------------------------------+  |
+|  |             Docker Compose               |  |
+|  |                                          |  |
+|  |  +------------------------------------+  |  |
+|  |  |       Nginx Container              |  |  |
+|  |  |                                    |  |  |
+|  |  |  - HTTP: Port 80                   |  |  |
+|  |  |  - HTTPS: Port 443                 |  |  |
+|  |  |  - HTTP to HTTPS redirect          |  |  |
+|  |  |  - Reverse proxy                   |  |  |
+|  |  +------------------+-----------------+  |  |
+|  |                     |                    |  |
+|  |                     | Internal Docker    |  |
+|  |                     | Network             |  |
+|  |                     v                    |  |
+|  |  +------------------------------------+  |  |
+|  |  |       FastAPI Container            |  |  |
+|  |  |                                    |  |  |
+|  |  |  Python REST API                   |  |  |
+|  |  |          |                         |  |  |
+|  |  |          v                         |  |  |
+|  |  |  Uvicorn ASGI Server               |  |  |
+|  |  |  Internal Port: 8000               |  |  |
+|  |  |  Health Check: /health             |  |  |
+|  |  +------------------------------------+  |  |
+|  |                                          |  |
+|  +------------------------------------------+  |
+|                                                |
+|  AWS Security Group:                           |
+|  - Allow inbound TCP 80                        |
+|  - Allow inbound TCP 443                       |
+|  - No public SSH access                        |
+|  - Port 8000 is not publicly exposed           |
+|                                                |
+|  AWS Systems Manager Session Manager           |
+|  Used for administrative access                |
++------------------------------------------------+
 ```
 
-The developer pushes changes to the GitHub repository. GitHub Actions validates the application, builds the Docker image, and publishes it to GHCR. After the CI job succeeds, a self-hosted runner on EC2 pulls the latest code and image and updates the running services using Docker Compose.
+### 2. Application Request Flow
 
-Nginx handles incoming HTTP and HTTPS requests and forwards application traffic to FastAPI over the internal Docker network. HTTP requests are redirected to HTTPS, and Let's Encrypt provides the TLS certificate.
+1. The client sends an HTTP or HTTPS request to `devops-fastapi.duckdns.org`.
+2. The AWS security group allows incoming traffic on ports 80 and 443.
+3. Nginx receives the request. HTTP requests are redirected to HTTPS.
+4. Nginx forwards HTTPS requests to the FastAPI service through the internal Docker network.
+5. Uvicorn receives the request on port 8000 and runs the FastAPI application.
+6. FastAPI processes the request and returns a JSON response.
+7. Uvicorn sends the response back through Nginx to the client.
+
+### 3. CI/CD Deployment Flow
+
+1. The developer pushes code changes to the GitHub repository.
+2. GitHub Actions runs the configured validation and build steps.
+3. For a successful push to the `main` branch, the workflow publishes the Docker image to GHCR.
+4. The self-hosted GitHub Actions runner on EC2 pulls the updated repository and image.
+5. Docker Compose recreates the API container using the updated image while keeping the Nginx service configured.
+6. The application health check and public API endpoints can be verified after deployment.
+
+### 4. Container Responsibilities
+
+| Component | Responsibility |
+|---|---|
+| Nginx container | HTTPS termination, HTTP-to-HTTPS redirect, and reverse proxy |
+| FastAPI container | REST API endpoints and application logic |
+| Uvicorn | ASGI server that runs the FastAPI application |
+| Docker Compose | Manages the two containers and their network |
+| GHCR | Stores published Docker images |
+| GitHub Actions | Automates validation, image publishing, and deployment |
+| AWS EC2 | Hosts the Docker-based deployment |
+
+**Security note:** The application port 8000 is not published directly to the public network. Nginx reaches the FastAPI service over the internal Docker network.
 
 ## Features
 

@@ -1,84 +1,90 @@
-# FastAPI DevOps Project — CI/CD Deployment on AWS EC2
+# FastAPI DevOps Project
 
-A containerized Python REST API deployed on AWS EC2 using Docker Compose, Nginx, HTTPS, and GitHub Actions for automated CI/CD.
+A Python REST API deployed on AWS EC2 using Docker, Docker Compose, Nginx, HTTPS, and GitHub Actions for continuous integration and deployment.
 
-## 🚀 Live Application
+## Live Application
 
 - **Application:** https://devops-fastapi.duckdns.org/
 - **Health Check:** https://devops-fastapi.duckdns.org/health
-- **API Documentation:** https://devops-fastapi.duckdns.org/docs
+- **API Information:** https://devops-fastapi.duckdns.org/api/info
 - **Demo Endpoint:** https://devops-fastapi.duckdns.org/api/demo
+- **API Documentation:** https://devops-fastapi.duckdns.org/docs
 
-> **Note:** The live URL is available while the AWS EC2 instance is running and correctly configured. Availability is not guaranteed.
+The application is available while the EC2 instance and its associated services are running.
 
-## 🛠️ Tech Stack
+## Technologies Used
 
-- **Language:** Python 3.12
-- **Framework:** FastAPI
-- **Containerization:** Docker
-- **Container Orchestration:** Docker Compose
-- **Reverse Proxy:** Nginx
-- **HTTPS:** Let's Encrypt
-- **DNS:** DuckDNS
-- **Cloud Hosting:** AWS EC2 (Ubuntu 24.04)
-- **CI/CD:** GitHub Actions
-- **Deployment Runner:** Self-hosted GitHub Actions runner
+- Python 3.12
+- FastAPI
+- Docker and Docker Compose
+- Nginx reverse proxy
+- Let's Encrypt for HTTPS
+- DuckDNS for domain configuration
+- AWS EC2 running Ubuntu 24.04
+- GitHub Actions for CI/CD
+- GitHub Container Registry (GHCR)
+- GitHub Actions self-hosted runner
 
-## 🏗️ Architecture
+## Architecture
 
 ```text
 Developer
     |
-    | Git push to main
+    | Push changes to main
     v
 GitHub Repository
     |
     v
 GitHub Actions
     |
-    | Run CI checks and build Docker image
+    | Run validation and build image
     v
 GitHub Container Registry (GHCR)
     |
     | Publish Docker image
     v
-Self-hosted GitHub Actions Runner on AWS EC2
+Self-hosted Runner on AWS EC2
     |
-    | Pull latest code and GHCR image
-    | Deploy using Docker Compose
+    | Pull latest code and image
+    | Deploy with Docker Compose
     v
 Nginx (Ports 80 and 443)
     |
-    | HTTPS / Reverse Proxy
+    | HTTPS and reverse proxy
     v
-FastAPI Container (Port 8000, internal only)
+FastAPI Container (Internal Port 8000)
 ```
 
-Nginx handles incoming HTTP and HTTPS requests and forwards API traffic to FastAPI. Let's Encrypt provides the TLS certificate. GitHub Actions publishes the container image to GHCR before deploying it to EC2.
+The developer pushes changes to the GitHub repository. GitHub Actions validates the application, builds the Docker image, and publishes it to GHCR. After the CI job succeeds, a self-hosted runner on EC2 pulls the latest code and image and updates the running services using Docker Compose.
 
-## ✨ Features
+Nginx handles incoming HTTP and HTTPS requests and forwards application traffic to FastAPI over the internal Docker network. HTTP requests are redirected to HTTPS, and Let's Encrypt provides the TLS certificate.
+
+## Features
 
 - REST API built with FastAPI
-- Dockerized application for consistent deployment
-- Docker Compose service management
+- Containerized application using Docker
+- Service management with Docker Compose
 - Nginx reverse proxy
-- HTTPS encryption with Let's Encrypt
-- HTTP-to-HTTPS redirection
-- Automated CI/CD using GitHub Actions
+- HTTPS with Let's Encrypt
+- Automatic HTTP-to-HTTPS redirection
+- Automated image publishing to GHCR
+- GitHub Actions CI/CD pipeline
 - Application health-check endpoint
-- Automated container rebuild and deployment after successful CI
+- Non-root application user inside the Docker container
+- Container health check and restart policy
+- Internal-only FastAPI port
 
-## 📡 API Endpoints
+## API Endpoints
 
 | Method | Endpoint | Description |
 |---|---|---|
-| GET | `/` | Application information |
-| GET | `/health` | Health status |
-| GET | `/api/info` | API and runtime information |
-| GET | `/api/demo` | Demonstration response |
-| GET | `/docs` | Interactive Swagger API documentation |
+| GET | `/` | Returns application information |
+| GET | `/health` | Returns the application health status |
+| GET | `/api/info` | Returns application and runtime information |
+| GET | `/api/demo` | Returns a demonstration response |
+| GET | `/docs` | Opens the interactive Swagger API documentation |
 
-## 📂 Project Structure
+## Project Structure
 
 ```text
 fastapi-devops/
@@ -97,82 +103,277 @@ fastapi-devops/
 └── README.md
 ```
 
-Runtime certificate files and other deployment secrets should not be committed to the repository.
+The repository contains the application source code, Docker configuration, Nginx configuration, CI/CD workflow, and project documentation. Production TLS certificates and private keys are maintained on the server and should not be committed to Git.
 
-## ⚙️ Run Locally
+## Running Locally
 
 ### Prerequisites
 
-- Python 3.12 or compatible version
+Install the following tools before running the application:
+
+- Python 3.12 or a compatible version
 - Docker
 - Docker Compose
 - Git
 
-### 1. Clone the repository
+### Clone the repository
 
 ```bash
 git clone https://github.com/UbaisAd/fastapi-devops.git
 cd fastapi-devops
 ```
 
-### 2. Start the application
+### Build the Docker image
 
 ```bash
-docker compose up -d --build
+docker build -t fastapi-devops:local .
 ```
 
-Check container status:
+### Run the API container
 
 ```bash
-docker compose ps
+docker run -d --name fastapi-local -p 8000:8000 fastapi-devops:local
 ```
 
-**Note:** The production Compose configuration uses Nginx with HTTPS certificates mounted from the EC2 host. For a fresh local setup, configure the required certificates or use a separate development configuration before starting the complete stack.
-
-### 3. Stop the application
+Verify the health endpoint:
 
 ```bash
-docker compose down
+curl http://localhost:8000/health
 ```
 
-## 🔄 CI/CD Workflow
+Expected response:
 
-The GitHub Actions workflow automates the deployment process:
+```json
+{"status":"healthy"}
+```
+
+Open `http://localhost:8000/docs` to access the API documentation.
+
+Stop and remove the local container when finished:
+
+```bash
+docker rm -f fastapi-local
+```
+
+The production Docker Compose configuration includes Nginx and mounts TLS certificates from the server. For local testing, the API-only Docker commands above avoid the need to configure production certificates.
+
+## Docker Image Publishing
+
+The application image is published to GitHub Container Registry.
+
+Image reference:
+
+`ghcr.io/ubaisad/fastapi-devops:latest`
+
+The GitHub Actions workflow builds and publishes the image when changes are pushed to the `main` branch. The repository's workflow permissions must allow package publishing.
+
+To pull the public image manually:
+
+```bash
+docker pull ghcr.io/ubaisad/fastapi-devops:latest
+```
+
+The `latest` tag refers to the most recently published image. For production rollback, use a known-good image digest or versioned tag rather than relying on `latest`.
+
+## CI/CD Workflow
+
+The GitHub Actions workflow automates application validation, image publishing, and deployment.
 
 1. A developer pushes changes to the `main` branch.
-2. GitHub Actions runs the CI build and validation job.
-3. After CI succeeds, the deployment job runs on the self-hosted EC2 runner.
-4. The runner pulls the latest code from GitHub.
-5. Docker Compose builds the updated image and recreates the required containers.
-6. The deployment job checks the running containers.
+2. GitHub Actions checks out the repository and installs the Python dependencies.
+3. The workflow validates that the FastAPI application can be imported and builds the Docker image.
+4. On pushes to `main`, the workflow authenticates to GHCR using the GitHub-provided token and publishes the image.
+5. After the CI job succeeds, the deployment job runs on the self-hosted runner on EC2.
+6. The runner pulls the latest repository changes and the published API image.
+7. Docker Compose updates the application services.
+8. The workflow checks the service status.
 
-This reduces manual deployment steps and keeps the deployed application synchronized with the repository.
+Pull requests run the CI validation and image build without publishing or deploying the image. Deployment occurs only for pushes to `main` after the required CI job succeeds.
 
-## 🔐 Security Considerations
+## Deployment on AWS EC2
+
+The application runs on an Ubuntu EC2 instance. The self-hosted GitHub Actions runner performs the deployment, while Docker Compose manages the API and Nginx services.
+
+Connect to the instance using AWS Systems Manager Session Manager or another approved administration method.
+
+Navigate to the project directory:
+
+```bash
+cd /home/ubuntu/fastapi-devops
+```
+
+Check the service status:
+
+```bash
+sudo docker compose ps
+```
+
+Pull the latest API image:
+
+```bash
+sudo docker compose pull api
+```
+
+Apply the deployment:
+
+```bash
+sudo docker compose up -d
+```
+
+Check the services again:
+
+```bash
+sudo docker compose ps
+```
+
+These commands are also useful for manual recovery. Under normal operation, GitHub Actions performs the deployment automatically.
+
+## Verification
+
+Verify the public endpoints using a browser or `curl`.
+
+```bash
+curl -fsS https://devops-fastapi.duckdns.org/
+curl -fsS https://devops-fastapi.duckdns.org/health
+curl -fsS https://devops-fastapi.duckdns.org/api/info
+curl -fsS https://devops-fastapi.duckdns.org/api/demo
+```
+
+A successful health check returns:
+
+```json
+{"status":"healthy"}
+```
+
+Check the HTTPS certificate in the browser or inspect it with:
+
+```bash
+curl -Iv https://devops-fastapi.duckdns.org/
+```
+
+The API should be reachable through Nginx over HTTPS. The FastAPI container listens on port 8000 inside the Docker network and is not directly exposed to the public internet.
+
+## Logs and Troubleshooting
+
+### Check container status
+
+```bash
+sudo docker compose ps
+```
+
+### View API logs
+
+```bash
+sudo docker compose logs --tail=100 api
+```
+
+### View Nginx logs
+
+```bash
+sudo docker compose logs --tail=100 nginx
+```
+
+### Follow logs in real time
+
+```bash
+sudo docker compose logs -f
+```
+
+### Common issues
+
+**The API is unhealthy**
+
+Check the API container logs and health status. Confirm that the application starts successfully and that the `/health` endpoint responds correctly inside the container.
+
+**The website returns a 502 Bad Gateway**
+
+Check that the API container is running and that Nginx can reach the API service through the Docker network. Review the Nginx and API logs.
+
+**HTTPS is not working**
+
+Check DNS resolution, certificate validity, Nginx configuration, and the EC2 security group. Confirm that inbound ports 80 and 443 are allowed.
+
+**The GitHub Actions workflow fails**
+
+Review the failed job's logs. Check the CI output, GHCR permissions, runner availability, and Docker Compose errors before rerunning the workflow.
+
+**The deployment cannot pull the image**
+
+Verify the image name and tag, registry visibility, network connectivity, and registry authentication if required.
+
+Keep port 8000 private. Public application traffic should enter through Nginx on ports 80 and 443.
+
+## Rollback and Recovery
+
+If a new deployment fails, inspect the GitHub Actions logs and the running containers before making further changes.
+
+A reliable rollback requires a previously working image digest or versioned tag. The mutable `latest` tag alone does not identify a specific historical version.
+
+1. Identify the last known-good image digest or versioned tag from GHCR.
+2. Update the API image reference in `compose.yml` to that known-good version.
+3. Pull the selected image and recreate the API service.
+4. Check the container health and test the public endpoints.
+5. After resolving the issue, restore the normal deployment configuration.
+
+For example, after setting the API service to the intended known-good image:
+
+```bash
+sudo docker compose pull api
+sudo docker compose up -d
+sudo docker compose ps
+```
+
+Verify the health endpoint before considering the rollback complete. Record the known-good image reference and the reason for the rollback so that the recovery can be repeated if necessary.
+
+## Security Considerations
 
 - HTTPS is configured through Nginx and Let's Encrypt.
-- The FastAPI service is exposed internally to the Compose network rather than directly publishing port 8000 on the host.
-- Certificate private keys should remain outside version control.
-- The EC2 security group should allow only the required inbound ports.
-- GitHub Actions runner access and AWS permissions should follow the principle of least privilege.
+- The FastAPI service is accessible internally through the Docker network.
+- The application runs as a non-root user inside the container.
+- Docker health checks help identify an unhealthy application container.
+- Container restart policies help services recover after certain failures.
+- Production TLS certificates and private keys are excluded from version control.
+- The EC2 security group should expose only the required inbound ports, such as 80 and 443.
+- Administrative access should use an approved secure method, such as AWS Systems Manager Session Manager.
+- GitHub Actions permissions and AWS IAM permissions should follow the principle of least privilege.
+- Secrets and access tokens must not be committed to the repository or printed in workflow logs.
 
-## 📚 What I Learned
+## AWS Cleanup
 
-- Building and containerizing a FastAPI application
-- Managing services using Docker Compose
+When evaluation is complete and the application is no longer needed, remove or stop the AWS resources that are no longer required.
+
+1. Capture the required screenshots and save the submission evidence.
+2. Stop or terminate the EC2 instance when it is safe to take the application offline.
+3. Review related EBS volumes, snapshots, Elastic IP addresses, and other billable resources.
+4. Delete only resources that are no longer required and are safe to remove.
+5. Review AWS billing to check for remaining charges.
+
+Stopping or terminating an instance does not necessarily remove every billable resource. Check the AWS console before considering cleanup complete.
+
+Keep the GitHub repository and container image available if they are required for evaluation.
+
+## What I Learned
+
+Through this project, I practiced:
+
+- Building and containerizing a Python REST API
+- Managing application services with Docker Compose
 - Configuring Nginx as a reverse proxy
-- Enabling HTTPS using Let's Encrypt
-- Deploying applications to AWS EC2
-- Automating builds and deployments using GitHub Actions
+- Setting up HTTPS with Let's Encrypt
+- Deploying an application on AWS EC2
+- Publishing container images to GHCR
+- Automating validation and deployment with GitHub Actions
 - Using a self-hosted runner for deployment
-- Verifying application health and container status
+- Verifying application health and reviewing container logs
+- Documenting deployment, troubleshooting, and recovery procedures
 
-## 👨‍💻 Author
+## Author
 
 **Ubais Ahamed**
 
 - GitHub: https://github.com/UbaisAd
+- Repository: https://github.com/UbaisAd/fastapi-devops
 
 ---
 
-*This project demonstrates a basic end-to-end DevOps deployment workflow for a containerized REST API.*
+This project demonstrates an end-to-end deployment workflow for a containerized REST API using cloud infrastructure, container tooling, HTTPS, and automated CI/CD.

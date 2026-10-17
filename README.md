@@ -36,21 +36,25 @@ GitHub Repository
     v
 GitHub Actions
     |
-    | CI: Build and validate
+    | Run CI checks and build Docker image
     v
-Self-hosted Runner on AWS EC2
+GitHub Container Registry (GHCR)
     |
-    | Pull latest code
-    | Docker Compose build and deploy
+    | Publish Docker image
+    v
+Self-hosted GitHub Actions Runner on AWS EC2
+    |
+    | Pull latest code and GHCR image
+    | Deploy using Docker Compose
     v
 Nginx (Ports 80 and 443)
     |
     | HTTPS / Reverse Proxy
     v
-FastAPI Application (Port 8000)
+FastAPI Container (Port 8000, internal only)
 ```
 
-Nginx handles incoming HTTP and HTTPS requests and forwards API traffic to the FastAPI application. Let's Encrypt provides the TLS certificate.
+Nginx handles incoming HTTP and HTTPS requests and forwards API traffic to FastAPI. Let's Encrypt provides the TLS certificate. GitHub Actions publishes the container image to GHCR before deploying it to EC2.
 
 ## ✨ Features
 

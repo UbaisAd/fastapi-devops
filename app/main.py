@@ -25,4 +25,15 @@ def info():
     return {"application":app_name,"version":app_version,
             "python version":platform.python_version(),
             "runtime":platform.python_implementation(),
+            
             }
+
+
+@app.get("/api/demo")
+def demo():
+    return {
+        "message": "Hello from FastAPI!",
+        "environment": "production",
+        "version": "1.0.0",
+        "deployment": "CI/CD successful"
+    }

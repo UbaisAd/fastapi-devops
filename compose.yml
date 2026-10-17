@@ -1,7 +1,7 @@
 
 services:
   api:
-    build: .
+    image: ghcr.io/ubaisad/fastapi-devops:latest
     restart: unless-stopped
     expose:
       - "8000"
